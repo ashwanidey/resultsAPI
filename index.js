@@ -1,58 +1,28 @@
 const express = require('express');
 const puppeteer = require('puppeteer');
 const cheerio = require('cheerio');
+const {dataExtractor} = require('./utils/dataExtractor');
+const dotenv = require('dotenv');
 
 const app = express()
 
 app.use(express.json())
 
-
-function parseRawData(rawData) {
-  const result = [];
-  const terms = rawData.split('TermId').slice(0);  // Split by TermId to get each term separately
-  // console.log(terms)
-
-  terms.forEach((term,index) => {
-      if(index == 0) return;
-      const termObj = {};
-      let termIdMatch;
-      // Extract the term information
-      termIdMatch = term.substring(4,10);
-      
-      const sessionMatch = term.match(/Session\s*:\s*\[(.*?)\]/);
-      const tgpaMatch = term.match(/TGPA\s*:\s*\[(.*?)\]/);
-      termObj['TermId'] = termIdMatch ? termIdMatch : null;
-      termObj['Session'] = sessionMatch ? sessionMatch[1] : null;
-      termObj['TGPA'] = tgpaMatch ? tgpaMatch[1] : null;
-
-      // console.log(termObj);
-
-      // Extract the courses for the term
-      const courses = [];
-      const courseRegex = /\d([A-Z]{3}\d{3}):([^0-9]+)(\d)([A-Z+]+)/g;
-      let courseMatch;
-
-      while ((courseMatch = courseRegex.exec(term)) !== null) {
-          const course = {
-              CourseCode: courseMatch[1].trim(),
-              CourseName: courseMatch[2].trim(),
-              Credits: courseMatch[3].trim(),
-              Grade: courseMatch[4].trim(),
-          };
-          courses.push(course);
-          // console.log(course);
-      }
-
-      termObj['Courses'] = courses;
-      result.push(termObj);
-  });
-
-  return result;
-}
-
 app.get("/", async(req, res) => {
+  const browser = await puppeteer.launch({
+    args: [
+      "--disable-setuid-sandbox",
+      "--no-sandbox",
+      "--single-process",
+      "--no-zygote",
+    ],
+    executablePath:
+      process.env.NODE_ENV === "production"
+        ? process.env.PUPPETEER_EXECUTABLE_PATH
+        : puppeteer.executablePath(),
+  });
     try {
-      const browser = await puppeteer.launch({ headless: true });
+      
    const page = await browser.newPage();
   
   // Navigate to the website
@@ -95,7 +65,7 @@ app.get("/", async(req, res) => {
     CGPA: tableData[7].column5.substring(7),
    
   };
-  const courseData = parseRawData(tableData[7].column1.toString());
+  const courseData = dataExtractor(tableData[7].column1.toString());
 
   const resultData = {
     Student: studentData,
