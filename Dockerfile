@@ -1,39 +1,30 @@
-FROM node:23.4.0
+# syntax = docker/dockerfile:1
 
-RUN apt-get install -y python make gcc g++ 
+FROM node:20.3.0-slim as base
 
-# Install google-chrome-stable
-RUN apt-get update && apt-get install gnupg wget -y && \
-  wget --quiet --output-document=- https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/google-archive.gpg && \
-  sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' && \
-  apt-get update && \
-  apt-get install google-chrome-stable -y --no-install-recommends && \
-  rm -rf /var/lib/apt/lists/*
+# Start with a plain Node image.
 
-# Create a user with name 'app' and group that will be used to run the app
-RUN groupadd -r app && useradd -rm -g app -G audio,video app
++ # Install latest chrome dev package and fonts to support major charsets (Chinese, Japanese, Arabic, Hebrew, Thai and a few others)
++ # Note: this installs the necessary libs to make the bundled version of Chrome that Puppeteer
++ # installs, work.
++ RUN apt-get update \
++     && apt-get install -y wget gnupg \
++     && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
++     && sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
++     && apt-get update \
++     && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-khmeros fonts-kacst fonts-freefont-ttf libxss1 \
++       --no-install-recommends \
++     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /home/app
+FROM base as build
 
-# Copy and setup your project 
+# Install dependencies & build application code.
 
-COPY package.json /home/app/package.json
+FROM base
 
-COPY yarn.lock /home/app
+# Copy the application code from `build` and start it up.
+COPY --from=build /app /app
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
 
-RUN yarn install --frozen-lockfile
-
-COPY . /home/app
-
-RUN yarn build
-
-EXPOSE 4000
-
-# Give app user access to all the project folder
-RUN chown -R app:app /home/app
-
-RUN chmod -R 777 /home/app
-
-USER app
-
-CMD ["yarn", "start"]
+EXPOSE 3000
+CMD [ "npm", "run", "start" ]
