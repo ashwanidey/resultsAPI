@@ -10,17 +10,11 @@ app.use(express.json())
 
 app.get("/", async(req, res) => {
   const browser = await puppeteer.launch({
-    args: [
-      "--disable-setuid-sandbox",
-      "--no-sandbox",
-      "--single-process",
-      "--no-zygote",
-    ],
-    executablePath:
-      process.env.NODE_ENV === "production"
-        ? process.env.PUPPETEER_EXECUTABLE_PATH
-        : puppeteer.executablePath(),
-  });
+    executablePath: '/usr/bin/google-chrome',
+    headless: 'new',
+    ignoreDefaultArgs: ['--disable-extensions'],
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+});
     try {
       
    const page = await browser.newPage();

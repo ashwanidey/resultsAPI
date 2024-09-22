@@ -1,11 +1,39 @@
-FROM ghcr.io/puppeteer/puppeteer:23.4.0
+FROM node:23.4.0
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+RUN apt-get install -y python make gcc g++ 
 
-WORKDIR /usr/src/app
+# Install google-chrome-stable
+RUN apt-get update && apt-get install gnupg wget -y && \
+  wget --quiet --output-document=- https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/google-archive.gpg && \
+  sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' && \
+  apt-get update && \
+  apt-get install google-chrome-stable -y --no-install-recommends && \
+  rm -rf /var/lib/apt/lists/*
 
-COPY package*.json ./
-RUN npm ci
-COPY . .
-CMD [ "node", "index.js" ]
+# Create a user with name 'app' and group that will be used to run the app
+RUN groupadd -r app && useradd -rm -g app -G audio,video app
+
+WORKDIR /home/app
+
+# Copy and setup your project 
+
+COPY package.json /home/app/package.json
+
+COPY yarn.lock /home/app
+
+RUN yarn install --frozen-lockfile
+
+COPY . /home/app
+
+RUN yarn build
+
+EXPOSE 4000
+
+# Give app user access to all the project folder
+RUN chown -R app:app /home/app
+
+RUN chmod -R 777 /home/app
+
+USER app
+
+CMD ["yarn", "start"]
